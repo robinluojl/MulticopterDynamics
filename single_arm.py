@@ -1,10 +1,10 @@
 import sys
 print(sys.path)
 sys.path.append(
-    "C:\\Users\\Seb\\Documents\\Drone\\ConvertibleUAV\\Tools\\flight_analyzer")
-from modeles import *
+    "Lib")
+from models import *
 import matplotlib.pyplot as plt
-import toolbox as tool
+import plotting as tool
 import time
 
 
@@ -65,7 +65,7 @@ def run_dynamic_model():
     kv = 1100. * 2 * np.pi / 60
     omegaMax = 1100 * V0 * 2 * np.pi / 60
     ki = 5.3*momentAeroCoef * omegaMax**2 / 31
-    r = 0.5
+    resistance = 0.5
 
     # time advance
     nbIte = 500000
@@ -88,7 +88,7 @@ def run_dynamic_model():
 
     esc = ESC(escFreq, throttleRange)
     battery = Battery(V0, capa, maxCurrent)
-    engine = Engine(ki, kv, R, rotorMass,
+    engine = Engine(ki, kv, resistance, rotorMass,
                     rotorInternalRadius, rotorExternalRadius)
     propeller = Propeller(2 * bladeRadius, meanChord, bladeMass, nbIte)
     propeller.initKw(rho)
@@ -101,8 +101,10 @@ def run_dynamic_model():
     #     o-----M engine1
     #     x     y
 
-    # Engine + propeller is modelled as a point mass
-    pmM1 = Point_mass(engineMass + propellerMass, 0., 0.5 * armLength, 0.)
+    # Engine + propeller is modelled as a point mass.
+    # We add an arbitrary mass that the engine is capable of lifting
+    arbitraryMass = 0.18
+    pmM1 = Point_mass(engineMass + propellerMass + arbitraryMass, 0., 0.5 * armLength, 0.)
 
     quadri = Meca_model()
     quadri.add(pmM1)
