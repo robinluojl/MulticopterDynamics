@@ -1,14 +1,16 @@
 import sys
-print(sys.path)
-sys.path.append(
-    "Lib")
-from models import *
+#sys.path.append("Lib")
+from Lib.models import *
 import matplotlib.pyplot as plt
-import plotting as tool
+import Lib.plotting as tool
 import time
 
 
 def run_dynamic_model():
+    """Simulation of an arm articulated around x-axis, with an engine and a propeller
+    at the end. Engine throttle is controlled by two PID controllers taking as input
+    the arm angle and arm velocity. The arm starts from horizontal position.
+    The objective is to stabilize the arm horizontally"""
 
     # air
     rho = 1.2
