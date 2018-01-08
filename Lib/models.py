@@ -2,16 +2,17 @@ import numpy as np
 import sys
 
 
+class Struct(object):
+    def __init__(self, **entries):
+        self.__dict__.update(entries)
+
+
 class PID():
 
-    def __init__(self, kp, ki, kd, integralLimit, deltaFilter, heartbeatHz):
-        self.kp = kp
-        self.ki = ki
-        self.kd = kd
-        self.integralLimit = integralLimit
-        self.deltaFilter = deltaFilter
+    def __init__(self, initial_data):
+        for key in initial_data:
+            setattr(self, key, initial_data[key])
         self.dxFiltered = 0.
-        self.heartbeatHz = heartbeatHz
         self.previousX = 0.
         self.errorIntegral = 0.
         self.proportionalTerm = 0.
@@ -49,9 +50,6 @@ class PID():
         return output
 
 
-
-
-
 class Battery():
 
     def __init__(self, v0, capa, maxCurrent):
@@ -66,19 +64,15 @@ class Battery():
 
 class Engine():
 
-    def __init__(self, ki, kv, resistance, rotorMass, rotorInternalRadius, rotorExternalRadius):
-        self.ki = ki
-        self.kv = kv
-        self.resistance = resistance
-        self.rotorMass = rotorMass
-        self.rotorInternalRadius = rotorInternalRadius
-        self.rotorExternalRadius = rotorExternalRadius
+    def __init__(self, initial_data):
+        for key in initial_data:
+            setattr(self, key, initial_data[key])
         self.J = self.rotorMass * \
             (0.5 * self.rotorExternalRadius**2 +
              0.5 * self.rotorInternalRadius**2)
         self.omega_eq = 0.
 
-    def compute_equilibrium_omega(self, propeller, Vs):
+    def set_equilibrium_omega(self, propeller, Vs):
         """Steady state engine rotation velocity"""
         roots = np.roots(
             [-propeller.kw, -self.ki / (self.resistance * self.kv), self.ki * Vs / self.resistance])
@@ -100,6 +94,9 @@ class Engine():
         """Inertial torque in engine axis frame"""
         return self.J
 
+    def getMass(self):
+        return self.mass
+
 
 class ESC():
     """Model for an electric engine controller"""
@@ -116,18 +113,17 @@ class ESC():
 class Propeller():
     """Model for a small scale (RC plane) propeller"""
 
-    def __init__(self, diameter, meanChord, bladeMass, nbIte):
+    def __init__(self, initial_data):
+        for key in initial_data:
+            setattr(self, key, initial_data[key])
         self.cl = 1.23
         self.cd	 = 1.23
-        self.diameter = diameter
-        self.meanChord = meanChord
-        self.bladeMass = bladeMass
         self.kw = np.nan
-        self.J = 2 * 2. / 3 * self.bladeMass * (0.5 * diameter)**2
+        self.J = 2 * 2. / 3 * self.bladeMass * (0.5 * self.diameter)**2
 
     def initKw(self, rho):
         """Initialize propeller torque coefficient"""
-        self.kw = 2 * 0.25 * rho * self.cd	 * \
+        self.kw = 2 * 0.25 * rho * self.cd * \
             (0.5 * self.diameter)**4 * self.meanChord
 
     def calibrateCl(self, thrust, omega):
@@ -150,15 +146,19 @@ class Propeller():
         """Propeller inertial torque in propeller axis frame"""
         return self.J
 
+    def getMomentAeroCoef(self, rho):
+        return 2 * 0.25 * rho * self.cd * 0.5 * self.diameter**4 * self.meanChord
+
+    def getMass(self):
+        return 2 * self.bladeMass
+
 
 class Point_mass():
     """Model for a point mass in rotation around (0,0,0)"""
 
-    def __init__(self, mass, xG, yG, zG):
-        self.mass = mass
-        self.xG = xG
-        self.yG = yG
-        self.zG = zG
+    def __init__(self, initial_data):
+        for key in initial_data:
+            setattr(self, key, initial_data[key])
         self.force = np.zeros((3))
 
     def computeJ(self, rotAxis):
