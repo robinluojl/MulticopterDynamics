@@ -28,4 +28,4 @@ quadri = Meca_model()
 quadri.add(pmM1)
 
 # rotation axis
-x = (1, 0, 0)
+axe = (1, 0, 0)

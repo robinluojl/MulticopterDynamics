@@ -2,11 +2,6 @@ import numpy as np
 import sys
 
 
-class Struct(object):
-    def __init__(self, **entries):
-        self.__dict__.update(entries)
-
-
 class PID():
 
     def __init__(self, initial_data):
@@ -105,9 +100,9 @@ class ESC():
         self.frequency = frequency
         self.maxThrottle = maxThrottle
 
-    def computeVs(self, throttle, accu):
+    def computeVs(self, throttle, battery):
         """Compute output controller voltage (= engine voltage if no lost in the wires)"""
-        return accu.compute_V() * throttle / self.maxThrottle
+        return battery.compute_V() * throttle / self.maxThrottle
 
 
 class Propeller():
@@ -160,19 +155,21 @@ class Point_mass():
         for key in initial_data:
             setattr(self, key, initial_data[key])
         self.force = np.zeros((3))
+        self.gravityForce = np.zeros((3))
 
     def computeJ(self, rotAxis):
         """Point mass inertial torque"""
         return self.mass * np.linalg.norm(np.cross(rotAxis, np.array([self.xG, self.yG, self.zG])))
 
-    def setForce(self, force):
-        """Update force (3 element array or tuple) acting on the Point mass"""
-        self.force = force
+    def computeGravityForce(self, theta):
+        self.gravityForce = np.array([0.,
+            -self.mass * 9.81 * np.sin(theta),
+            -self.mass * 9.81 * np.cos(theta)])
 
     def computeTorque(self, rotAxis):
         """Compute Point mass torque around rotAxis (3 element array or tuple) at (0,0,0)"""
         torqueVector = np.cross(
-            np.array([self.xG, self.yG, self.zG]), self.force)
+            np.array([self.xG, self.yG, self.zG]), self.force + self.gravityForce)
         return np.dot(rotAxis, torqueVector)
 
 
@@ -185,6 +182,7 @@ class ODEintegration():
         self.f = np.zeros((nbIte))
         self.fDot = np.zeros((nbIte))
         self.fDotDot = np.zeros((nbIte))
+        self.timeAxis = np.arange(0., self.nbIte) * self.dt
 
     def initF(self, f0):
         """Initial solution for ODE solution f"""
@@ -221,6 +219,7 @@ class Meca_model():
     """Mecanical model consisting of N point masses in rotation around (0,0,0)"""
 
     def __init__(self):
+        self.theta = 0.
         self.model = []
 
     def add(self, pointMass):
@@ -233,6 +232,10 @@ class Meca_model():
         for m in self.model:
             J += m.computeJ(rot_axis)
         return J
+
+    def updateGravityForce(self):
+        for m in self.model:
+            m.computeGravityForce(self.theta)
 
     def computeTotalTorque(self, rotAxis):
         """Compute torque of the model around rotAxis at (0,0,0)"""

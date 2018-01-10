@@ -2,4 +2,4 @@
 throttleRange = 2000
 
 # PID control loop frequency in Hz
-heartbeatHz = 160  
+heartbeatHz = 160
