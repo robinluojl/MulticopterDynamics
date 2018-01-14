@@ -99,10 +99,11 @@ class ESC():
     def __init__(self, frequency, maxThrottle):
         self.frequency = frequency
         self.maxThrottle = maxThrottle
+        self.vs = 0.
 
     def computeVs(self, throttle, battery):
         """Compute output controller voltage (= engine voltage if no lost in the wires)"""
-        return battery.compute_V() * throttle / self.maxThrottle
+        self.vs = battery.compute_V() * throttle / self.maxThrottle
 
 
 class Propeller():
@@ -177,12 +178,11 @@ class ODEintegration():
     """Time integration of a first or second order ODE"""
 
     def __init__(self, nbIte, dt):
-        self.nbIte = nbIte
         self.dt = dt
-        self.f = np.zeros((nbIte))
-        self.fDot = np.zeros((nbIte))
-        self.fDotDot = np.zeros((nbIte))
-        self.timeAxis = np.arange(0., self.nbIte) * self.dt
+        self.f = np.zeros((2))
+        self.fDot = 0.
+        self.fDotDot = 0.
+        self.timeAxis = np.arange(0., nbIte) * self.dt
 
     def initF(self, f0):
         """Initial solution for ODE solution f"""
@@ -191,25 +191,24 @@ class ODEintegration():
     def initFDot(self, fDot0):
         """Initial solution for the derivative of ODE solution f.
         Only necessary for second order ODE"""
-        self.fDot[:] = fDot0
+        self.fDot = fDot0
 
     def advanceInTimeFirstOrder(self, ite, fDot):
         """Integration of first order ODE"""
-        self.fDot[ite] = fDot
-        self.f[ite + 1] = self.fDot[ite] * self.dt + self.f[ite]
+        self.fDot = fDot
+        self.f = self.fDot * self.dt + self.f
 
     def advanceInTimeSecondOrder(self, ite, fDotDot):
         """Integration of second order ODE"""
-        self.fDotDot[ite] = fDotDot
-        self.f[ite + 1] = self.fDotDot[ite] * \
-            self.dt**2 + 2 * self.f[ite] - self.f[ite - 1]
-        self.fDot[ite + 1] = (self.f[ite + 1] - self.f[ite]) / self.dt
-
-    def getTimeAxis(self):
-        return np.arange(0., self.nbIte) * self.dt
+        self.fDotDot = fDotDot
+        self.fDot = (self.f[1] - self.f[0]) / self.dt
+        tmp = self.f[1]
+        self.f[1] = self.fDotDot * \
+            self.dt**2 + 2 * self.f[1] - self.f[0]
+        self.f[0] = tmp
 
     def getF(self):
-        return self.f
+        return self.f[0]
 
     def getFDot(self):
         return self.fDot

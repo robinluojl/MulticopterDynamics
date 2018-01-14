@@ -1,6 +1,7 @@
 import sys
+import numpy as np
 #sys.path.append("Lib")
-from Lib.models import *
+import Lib.models as mod
 import matplotlib.pyplot as plt
 import time
 import initController as cntrl
@@ -9,7 +10,8 @@ import initPropulsion as prop
 import initAmbient as amb
 import initSolver as solver
 import initMeca as meca
-import post as p
+import Lib.post as p
+import Lib.results as r
 
 
 # constant throttle order. Throttle control will be throttleOffset + PID control
@@ -25,6 +27,24 @@ mx = meca.quadri.computeTotalTorque(meca.axe)
 print ("inertial x momentum", jx)
 print ("total x torque", mx)
 
+# define results
+results = []
+results.append(r.Result_xy(solver.nbIte - 2, 'theta', 'theta (rad/Pi)', np.pi))
+results.append(r.Result_xy(solver.nbIte - 2, 'thetaDot', 'thetaDot ((rad/s) / 2*Pi)', 2 * np.pi))
+results.append(r.Result_xy(solver.nbIte - 2, 'PID theta P', 'PID theta P', cntrl.throttleRange))
+results.append(r.Result_xy(solver.nbIte - 2, 'PID theta I', 'PID theta I', cntrl.throttleRange))
+results.append(r.Result_xy(solver.nbIte - 2, 'PID theta D', 'PID theta D', cntrl.throttleRange))
+results.append(r.Result_xy(solver.nbIte - 2, 'PID omega P', 'PID omega P', cntrl.throttleRange))
+results.append(r.Result_xy(solver.nbIte - 2, 'PID omega I', 'PID omega I', cntrl.throttleRange))
+results.append(r.Result_xy(solver.nbIte - 2, 'PID omega D', 'PID omega D', cntrl.throttleRange))
+results.append(r.Result_xy(solver.nbIte - 2, 'Vs', 'Vs/V0', prop.battery.v0))
+
+fontsize = 12
+nbSubplot = 4
+styles = ['k-', 'k--', 'b-', 'b--', 'b:', 'g-', 'g--', 'g:', 'y-']
+subPlotIndex = [0, 0, 1, 1, 1, 2, 2, 2, 3]
+post = p.Post(fontsize)
+post.createXYPlot(nbSubplot, styles, subPlotIndex, results)
 
 
 def compute_dynamic_response(ite, throttleControl):
@@ -33,18 +53,18 @@ def compute_dynamic_response(ite, throttleControl):
     the solver advances in time and computes the new rotation velocity
     and angle of the mechanical model"""
 
-    vs1 = prop.esc.computeVs(throttleControl, prop.battery)
-    thetaDot1 = solver.ode1.fDot[ite]
-    theta1 = solver.ode1.f[ite]
-    thetaDot = solver.odex.fDot[ite]
-    theta = solver.odex.f[ite]
+    prop.esc.computeVs(throttleControl, prop.battery)
+    thetaDot1 = solver.ode1.fDot
+    theta1 = solver.ode1.getF()
+    thetaDot = solver.odex.fDot
+    theta = solver.odex.getF()
 
     engineTorque1 = prop.propeller.getTorque(
-        thetaDot1) + prop.engine.getTorque(thetaDot1, vs1)
+        thetaDot1) + prop.engine.getTorque(thetaDot1, prop.esc.vs)
     solver.ode1.advanceInTimeSecondOrder(ite, engineTorque1 / (prop.propeller.getJ() + prop.engine.getJ()))
 
     # update multicopter angle
-    meca.quadri.theta = solver.odex.f[ite]
+    meca.quadri.theta = solver.odex.getF()
 
     # gravty force acting on the point mass
     meca.quadri.updateGravityForce()
@@ -63,8 +83,8 @@ def compute_pid_control(ite):
 
     print ('retroaction time', ite * solver.deltaT)
 
-    thetaDot = solver.odex.fDot[ite]
-    theta = solver.odex.f[ite]
+    thetaDot = solver.odex.fDot
+    theta = solver.odex.getF()
 
     # PID control on arm rotation velocity
     targetOmega = pid.pidTheta.compute(theta, targetTheta)
@@ -100,41 +120,19 @@ def run_dynamic_model():
 
             throttleControl = compute_pid_control(ite)
 
-        # update outputs
-
-        p.plt.curves[0].x[ite - 1] = solver.ode1.timeAxis[ite]
-        p.plt.curves[0].y[ite - 1] = np.linalg.norm(prop.propeller.getThrust(amb.rho, solver.ode1.fDot[ite]))
-
-        p.plt.curves[1].x[ite - 1] = solver.ode1.timeAxis[ite]
-        p.plt.curves[1].y[ite - 1] = vs1
-
-        p.plt.curves[2].x[ite - 1] = solver.ode1.timeAxis[ite]
-        p.plt.curves[2].y[ite - 1] = pid.pidTheta.proportionalTerm
-        p.plt.curves[3].x[ite - 1] = solver.ode1.timeAxis[ite]
-        p.plt.curves[3].y[ite - 1] = pid.pidTheta.integralTerm
-        p.plt.curves[4].x[ite - 1] = solver.ode1.timeAxis[ite]
-        p.plt.curves[4].y[ite - 1] = pid.pidTheta.derivativeTerm
-
-        p.plt.curves[5].x[ite - 1] = solver.ode1.timeAxis[ite]
-        p.plt.curves[5].y[ite - 1] = pid.pidOmega.proportionalTerm
-        p.plt.curves[6].x[ite - 1] = solver.ode1.timeAxis[ite]
-        p.plt.curves[6].y[ite - 1] = pid.pidOmega.integralTerm
-        p.plt.curves[7].x[ite - 1] = solver.ode1.timeAxis[ite]
-        p.plt.curves[7].y[ite - 1] = pid.pidOmega.derivativeTerm
-
-        p.plt.curves[8].x[ite - 1] = solver.ode1.timeAxis[ite]
-        p.plt.curves[8].y[ite - 1] = throttleControl
-
-        p.plt.curves[9].x[ite - 1] = solver.ode1.timeAxis[ite]
-        p.plt.curves[9].y[ite - 1] = prop.esc.computeVs(throttleControl, prop.battery)
-        p.plt.curves[10].x[ite - 1] = solver.ode1.timeAxis[ite]
-        p.plt.curves[10].y[ite - 1] = solver.odex.getF()[ite]
+            # update results and post (plotting)
+            for r in results:
+                r.update(ite - 1)
+            post.plt.set()
 
     print(time.time() - time0)
 
-    p.plt.plot()
+    post.plt.plot()
 
 
 if __name__ == '__main__':
 
     run_dynamic_model()
+    # anim = p.animation.FuncAnimation(p.fig, p.animate, init_func=p.init,
+    # frames=len(p.circle_colors[0][0]), blit=True)
+    # plt.show()
